@@ -1,8 +1,10 @@
 import os
 import json
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from fastapi.openapi.docs import get_swagger_ui_html
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from dotenv import load_dotenv
 
 from schemas import (
@@ -11,6 +13,8 @@ from schemas import (
     TasksRequest, 
     ComplexityEstimationResponse
 )
+from exceptions import tratar_erro_gemini
+from logger import logger
 
 # Load environment variables
 load_dotenv()
@@ -18,7 +22,7 @@ load_dotenv()
 # Configure Gemini API
 API_KEY = os.getenv("GEMINI_API_KEY")
 if not API_KEY or API_KEY == "COLOQUE_SUA_CHAVE_AQUI":
-    print("AVISO: GEMINI_API_KEY não configurada no arquivo .env!")
+    logger.critical("AVISO: GEMINI_API_KEY não configurada no arquivo .env!")
 
 app = FastAPI(
     title="Tradutor de Técniques",
@@ -26,6 +30,22 @@ app = FastAPI(
     version="1.0.0",
     docs_url=None  # Desativa o padrão para usarmos um CDN alternativo
 )
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    logger.error(f"HTTP Exception {exc.status_code} na rota {request.url.path}: {exc.detail}")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.critical(f"Erro interno não tratado (500) na rota {request.url.path}: {str(exc)}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Ocorreu um erro interno inesperado no servidor."},
+    )
 
 @app.get("/docs", include_in_schema=False)
 async def custom_swagger_ui_html():
@@ -46,11 +66,12 @@ async def chamar_gemini(prompt: str) -> str:
         "contents": [{"parts": [{"text": prompt}]}]
     }
     
+    logger.info("Iniciando chamada à API do Gemini...")
     async with httpx.AsyncClient() as client:
         response = await client.post(GEMINI_URL, headers=headers, json=payload, timeout=60.0)
         
     if response.status_code != 200:
-        raise HTTPException(status_code=500, detail=f"Erro na API do Gemini: {response.text}")
+        tratar_erro_gemini(response.status_code, response.text)
         
     data = response.json()
     try:
@@ -63,17 +84,22 @@ async def chamar_gemini(prompt: str) -> str:
             texto_resposta = texto_resposta[3:]
         if texto_resposta.endswith("```"):
             texto_resposta = texto_resposta[:-3]
+        
+        logger.info("Resposta do Gemini processada com sucesso.")
         return texto_resposta.strip()
     except (KeyError, IndexError):
+        logger.error("Formato de resposta inesperado do Gemini. Dados: %s", data)
         raise HTTPException(status_code=500, detail="Formato de resposta inesperado do Gemini.")
 
-@app.post("/projeto/QuebrarTarefas", response_model=FeatureBreakdownResponse)
+@app.post("/projeto/QuebrarTarefas", response_model=FeatureBreakdownResponse, status_code=status.HTTP_201_CREATED)
 async def quebrar_tarefas(request: FeatureRequest):
     """
     Recebe uma descrição de uma funcionalidade em linguagem natural e retorna um JSON
     detalhando o passo a passo técnico necessário para Front-end, Back-end e Banco de Dados.
     """
+    logger.info(f"Recebida requisição para quebrar tarefas. Funcionalidade: {request.descricao[:50]}...")
     if not API_KEY or API_KEY == "COLOQUE_SUA_CHAVE_AQUI":
+         logger.error("Tentativa de requisição com API KEY não configurada.")
          raise HTTPException(status_code=500, detail="Chave da API do Gemini não configurada no servidor.")
 
     prompt = f"""
@@ -100,21 +126,26 @@ async def quebrar_tarefas(request: FeatureRequest):
     try:
         texto_resposta = await chamar_gemini(prompt)
         result_json = json.loads(texto_resposta)
+        logger.info("Quebra de tarefas concluída com sucesso.")
         return result_json
         
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        logger.error(f"Erro ao decodificar JSON do Gemini: {str(e)}")
         raise HTTPException(status_code=500, detail="O modelo não retornou um JSON válido.")
     except Exception as e:
+        logger.error(f"Erro inesperado em quebrar_tarefas: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/tarefa/EstimarComplexidade", response_model=ComplexityEstimationResponse)
+@app.post("/tarefa/EstimarComplexidade", response_model=ComplexityEstimationResponse, status_code=status.HTTP_201_CREATED)
 async def estimar_complexidade(request: TasksRequest):
     """
     Recebe uma lista de tarefas técnicas e retorna uma estimativa de complexidade,
     tempo em horas, possíveis riscos e sugestões para reduzir a dificuldade.
     """
+    logger.info(f"Recebida requisição para estimar complexidade de {len(request.tarefas)} tarefas.")
     if not API_KEY or API_KEY == "COLOQUE_SUA_CHAVE_AQUI":
+         logger.error("Tentativa de requisição com API KEY não configurada.")
          raise HTTPException(status_code=500, detail="Chave da API do Gemini não configurada no servidor.")
 
     tarefas_json = request.model_dump_json()
@@ -140,9 +171,12 @@ async def estimar_complexidade(request: TasksRequest):
     try:
         texto_resposta = await chamar_gemini(prompt)
         result_json = json.loads(texto_resposta)
+        logger.info("Estimativa de complexidade concluída com sucesso.")
         return result_json
         
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        logger.error(f"Erro ao decodificar JSON do Gemini: {str(e)}")
         raise HTTPException(status_code=500, detail="O modelo não retornou um JSON válido.")
     except Exception as e:
+        logger.error(f"Erro inesperado em estimar_complexidade: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

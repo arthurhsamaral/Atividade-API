@@ -1,0 +1,16 @@
+2026-06-26 17:34:39,549 - api_logger - ERROR - HTTP Exception 404 na rota /: Not Found
+2026-06-26 17:34:39,601 - api_logger - ERROR - HTTP Exception 404 na rota /favicon.ico: Not Found
+2026-06-26 17:41:57,845 - api_logger - ERROR - HTTP Exception 404 na rota /: Not Found
+2026-06-26 17:41:57,879 - api_logger - ERROR - HTTP Exception 404 na rota /favicon.ico: Not Found
+2026-06-26 18:08:49,833 - api_logger - INFO - Recebida requisição para quebrar tarefas. Funcionalidade: Criar uma tela de login com autenticação Google...
+2026-06-26 18:08:49,833 - api_logger - INFO - Iniciando chamada à API do Gemini...
+2026-06-26 18:09:00,368 - api_logger - INFO - Resposta do Gemini processada com sucesso.
+2026-06-26 18:09:00,368 - api_logger - INFO - Quebra de tarefas concluída com sucesso.
+2026-06-26 18:17:13,591 - api_logger - INFO - Recebida requisição para quebrar tarefas. Funcionalidade: Descreva uma possível forma de se dominar o mundo....
+2026-06-26 18:17:13,591 - api_logger - INFO - Iniciando chamada à API do Gemini...
+2026-06-26 18:17:24,673 - api_logger - INFO - Resposta do Gemini processada com sucesso.
+2026-06-26 18:17:24,673 - api_logger - INFO - Quebra de tarefas concluída com sucesso.
+2026-06-26 18:18:32,826 - api_logger - INFO - Recebida requisição para estimar complexidade de 1 tarefas.
+2026-06-26 18:18:32,826 - api_logger - INFO - Iniciando chamada à API do Gemini...
+2026-06-26 18:18:49,923 - api_logger - INFO - Resposta do Gemini processada com sucesso.
+2026-06-26 18:18:49,923 - api_logger - INFO - Estimativa de complexidade concluída com sucesso.
